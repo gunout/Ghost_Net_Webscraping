@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghost_net Web Scraper</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #000;
+            color: #0f0;
+            padding: 20px;
+            max-width: 800px;
+            margin: auto;
+            position: relative;
+            overflow: hidden;
+        }
+        h1 {
+            text-align: center;
+        }
+        .rubrique {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #0f0;
+            position: relative;
+            z-index: 1;
+        }
+        .rubrique h2 {
+            margin: 0;
+        }
+        .link {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        input[type="text"] {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin: 5px 0;
+            background-color: #111;
+            color: #0f0;
+            border: 1px solid #0f0;
+        }
+        button {
+            padding: 10px;
+            margin: 5px 0;
+            cursor: pointer;
+            background-color: #111;
+            color: #0f0;
+            border: 1px solid #0f0;
+        }
+        button:hover {
+            background-color: #0f0;
+            color: #000;
+        }
+        .delete-button {
+            background-color: #300;
+            color: white;
+            border: none;
+            padding: 5px;
+            cursor: pointer;
+        }
+        .delete-button:hover {
+            background-color: #f00;
+        }
+        .navigation {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .scraped-data {
+            font-size: 0.9em;
+            color: #fff;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: rgba(0, 50, 0, 0.3);
+            border: 1px solid #0f0;
+            overflow-x: auto;
+        }
+        .scraper-container {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #0f0;
+            position: relative;
+            z-index: 1;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+        .scraped-title {
+            color: #0f0;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+        .scraped-content {
+            margin-left: 15px;
+        }
+        .loading {
+            color: #0f0;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="matrixCanvas"></canvas>
+
+<h1>Télétexte avec Liens</h1>
+<div class="navigation" id="navigation-container"></div>
+<div id="rubriques-container"></div>
+<button onclick="ajouterRubrique()">Ajouter une Rubrique</button>
+
+<div class="scraper-container">
+    <h2>Web Scraper</h2>
+    <input type="text" id="scraper-input" placeholder="Entrez une URL HTTPS" />
+    <button onclick="scraperUrl()">Scraper l'URL</button>
+    <button onclick="effacerDonnees()">Effacer</button>
+    <div id="scraper-result" class="scraped-data"></div>
+</div>
+
+<script>
+    // Code pour l'effet de fond Matrix
+    const canvas = document.getElementById('matrixCanvas');
+    const ctx = canvas.getContext('2d');
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const fontSize = 10;
+    const columns = canvas.width / fontSize; 
+    const drops = Array(Math.floor(columns)).fill(1); 
+
+    function drawMatrix() {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#0f0'; 
+        ctx.font = fontSize + 'px Arial';
+        
+        for (let i = 0; i < drops.length; i++) {
+            const text = characters.charAt(Math.floor(Math.random() * characters.length));
+            ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+            drops[i]++;
+            if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                drops[i] = 0; 
+            }
+        }
+    }
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    setInterval(drawMatrix, 35);
+
+    let compteurRubriques = 0;
+
+    function ajouterRubrique() {
+        compteurRubriques++;
+        const rubriqueDiv = document.createElement('div');
+        rubriqueDiv.classList.add('rubrique');
+        rubriqueDiv.id = `rubrique-${compteurRubriques}`;
+        rubriqueDiv.innerHTML = `
+            <h2>Rubrique ${compteurRubriques}</h2>
+            <input type="text" id="link-input-${compteurRubriques}" placeholder="Ajouter un lien HTTPS" />
+            <button onclick="ajouterLien(${compteurRubriques})">Ajouter Lien</button>
+            <div id="links-container-${compteurRubriques}"></div>
+            <button class="delete-button" onclick="supprimerRubrique(${compteurRubriques})">Supprimer Rubrique</button>
+        `;
+        document.getElementById('rubriques-container').appendChild(rubriqueDiv);
+        ajouterBoutonNavigation(compteurRubriques);
+    }
+
+    async function ajouterLien(rubriqueId) {
+        const input = document.getElementById(`link-input-${rubriqueId}`);
+        const lien = input.value.trim();
+        
+        if (lien && lien.startsWith('https://')) {
+            const linksContainer = document.getElementById(`links-container-${rubriqueId}`);
+            const linkDiv = document.createElement('div');
+            linkDiv.classList.add('link');
+
+            // Afficher un message de chargement
+            linkDiv.innerHTML = `
+                <a href="${lien}" target="_blank">${lien}</a>
+                <span class="loading">Scraping en cours...</span>
+            `;
+            linksContainer.appendChild(linkDiv);
+            
+            const scrapedData = await scraper(lien); 
+            
+            linkDiv.innerHTML = `
+                <a href="${lien}" target="_blank">${lien}</a>
+                <button onclick="ouvrirLien('${lien}')">Ouvrir Lien</button>
+                <button class="delete-button" onclick="supprimerLien(this)">Supprimer</button>
+                <div class="scraped-data">${scrapedData}</div>
+            `;
+            input.value = '';
+        } else {
+            alert('Veuillez entrer un lien HTTPS valide.');
+        }
+    }
+
+    async function scraper(url) {
+        try {
+            const resultContainer = document.getElementById('scraper-result');
+            resultContainer.innerHTML = '<span class="loading">Scraping en cours...</span>';
+            
+            const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+            if (!response.ok) throw new Error('Erreur lors de la récupération des données');
+            
+            const data = await response.json();
+            const htmlContent = data.contents;
+            
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlContent, 'text/html');
+
+            // Extraire les informations de la page
+            const title = doc.querySelector('title')?.textContent || 'Pas de titre';
+            const metaDescription = doc.querySelector('meta[name="description"]')?.content || 'Pas de description';
+            
+            // Extraire tous les liens <a> de la page
+            const links = doc.querySelectorAll('a');
+            const linkList = Array.from(links)
+                .filter(link => link.href && link.href.startsWith('http'))
+                .map(link => `<a href="${link.href}" target="_blank">${link.textContent || link.href}</a>`)
+                .join('<br>');
+            
+            // Extraire le texte principal (approximation)
+            const paragraphs = doc.querySelectorAll('p');
+            const paragraphText = Array.from(paragraphs)
+                .map(p => p.textContent.trim())
+                .filter(text => text.length > 0)
+                .slice(0, 5) // Limiter à 5 paragraphes
+                .join('<br><br>');
+            
+            return `
+                <div class="scraped-title">Titre:</div>
+                <div class="scraped-content">${title}</div>
+                
+                <div class="scraped-title">Description:</div>
+                <div class="scraped-content">${metaDescription}</div>
+                
+                <div class="scraped-title">Liens (${links.length}):</div>
+                <div class="scraped-content">${linkList || 'Aucun lien trouvé'}</div>
+                
+                <div class="scraped-title">Contenu texte:</div>
+                <div class="scraped-content">${paragraphText || 'Aucun texte significatif trouvé'}</div>
+            `;
+        } catch (error) {
+            console.error('Erreur de scraping:', error);
+            return '<div class="scraped-title">Erreur:</div><div class="scraped-content">Impossible de récupérer les données. Vérifiez que l\'URL est correcte et que le site autorise le scraping.</div>';
+        }
+    }
+
+    async function scraperUrl() {
+        const input = document.getElementById('scraper-input');
+        const url = input.value.trim();
+        const resultContainer = document.getElementById('scraper-result');
+        
+        const urlRegex = /^https:\/\/[^\s/$.?#].[^\s]*$/;
+        
+        if (url && urlRegex.test(url)) {
+            const scrapedData = await scraper(url);
+            resultContainer.innerHTML = `
+                <div class="scraped-title">Résultat du scraping pour ${url}:</div>
+                ${scrapedData}
+            `;
+        } else {
+            alert('Veuillez entrer une URL HTTPS valide.');
+        }
+    }
+
+    function ouvrirLien(lien) {
+        window.open(lien, '_blank');
+    }
+
+    function supprimerLien(button) {
+        const linkDiv = button.parentElement;
+        linkDiv.remove();
+    }
+
+    function ajouterBoutonNavigation(rubriqueId) {
+        const navigationContainer = document.getElementById('navigation-container');
+        const button = document.createElement('button');
+        button.textContent = `Aller à Rubrique ${rubriqueId}`;
+        button.onclick = () => scrollToRubrique(rubriqueId);
+        navigationContainer.appendChild(button);
+    }
+
+    function scrollToRubrique(rubriqueId) {
+        const rubrique = document.getElementById(`rubrique-${rubriqueId}`);
+        rubrique.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function supprimerRubrique(rubriqueId) {
+        const rubrique = document.getElementById(`rubrique-${rubriqueId}`);
+        rubrique.remove();
+        const button = Array.from(document.querySelectorAll('.navigation button')).find(btn => btn.textContent.includes(`Aller à Rubrique ${rubriqueId}`));
+        if (button) button.remove(); 
+    }
+
+    function effacerDonnees() {
+        const resultContainer = document.getElementById('scraper-result');
+        resultContainer.innerHTML = '';
+        document.getElementById('scraper-input').value = '';
+    }
+</script>
+
+</body>
+</html>
