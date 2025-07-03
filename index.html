@@ -75,7 +75,9 @@
             padding: 10px;
             background-color: rgba(0, 50, 0, 0.3);
             border: 1px solid #0f0;
-            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 300px;
+            scroll-behavior: smooth;
         }
         .scraper-container {
             margin: 20px 0;
@@ -104,6 +106,18 @@
             color: #0f0;
             font-style: italic;
         }
+        .scroll-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .auto-scroll-toggle {
+            background-color: #003300;
+        }
+        .auto-scroll-toggle.active {
+            background-color: #00aa00;
+        }
     </style>
 </head>
 <body>
@@ -120,6 +134,11 @@
     <input type="text" id="scraper-input" placeholder="Entrez une URL HTTPS" />
     <button onclick="scraperUrl()">Scraper l'URL</button>
     <button onclick="effacerDonnees()">Effacer</button>
+    <div class="scroll-controls">
+        <button onclick="scrollResults('up')">↑ Monter</button>
+        <button onclick="scrollResults('down')">↓ Descendre</button>
+        <button id="auto-scroll-btn" class="auto-scroll-toggle" onclick="toggleAutoScroll()">Auto-défilement</button>
+    </div>
     <div id="scraper-result" class="scraped-data"></div>
 </div>
 
@@ -158,6 +177,8 @@
     setInterval(drawMatrix, 35);
 
     let compteurRubriques = 0;
+    let autoScrollInterval = null;
+    let isAutoScrolling = false;
 
     function ajouterRubrique() {
         compteurRubriques++;
@@ -270,8 +291,41 @@
                 <div class="scraped-title">Résultat du scraping pour ${url}:</div>
                 ${scrapedData}
             `;
+            // Faire défiler vers le bas après l'ajout du contenu
+            resultContainer.scrollTop = resultContainer.scrollHeight;
         } else {
             alert('Veuillez entrer une URL HTTPS valide.');
+        }
+    }
+
+    function scrollResults(direction) {
+        const resultContainer = document.getElementById('scraper-result');
+        const scrollAmount = 50;
+        
+        if (direction === 'up') {
+            resultContainer.scrollTop -= scrollAmount;
+        } else {
+            resultContainer.scrollTop += scrollAmount;
+        }
+    }
+
+    function toggleAutoScroll() {
+        const btn = document.getElementById('auto-scroll-btn');
+        isAutoScrolling = !isAutoScrolling;
+        
+        if (isAutoScrolling) {
+            btn.classList.add('active');
+            autoScrollInterval = setInterval(() => {
+                const resultContainer = document.getElementById('scraper-result');
+                if (resultContainer.scrollTop + resultContainer.clientHeight >= resultContainer.scrollHeight) {
+                    resultContainer.scrollTop = 0;
+                } else {
+                    resultContainer.scrollTop += 2;
+                }
+            }, 100);
+        } else {
+            btn.classList.remove('active');
+            clearInterval(autoScrollInterval);
         }
     }
 
